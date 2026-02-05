@@ -2,6 +2,7 @@ use crate::constants::{single_file_indexes::*, tracks::TRACKS};
 use crate::models::racecard::{Horse, KeyTrainerStat, PastPerformance, Race, Racecard, Workout};
 use crate::utils::transformers::Transformers;
 use crate::analysis::trip_handicapping_horse::best_bet_back_line;
+use std::path::Path;
 use tokio::fs;
 
 const NUMBER_OF_COLUMNS: usize = 1435;
@@ -474,6 +475,12 @@ pub async fn build_racecard(path: String, zip_file_name: String) -> Result<Racec
 
         races[race_idx].horses.push(horse);
     }
+
+    let zip_file_name = Path::new(&zip_file_name)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(&zip_file_name)
+        .to_string();
 
     let racecard = Racecard {
         id: 0,
