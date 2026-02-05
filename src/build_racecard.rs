@@ -1,6 +1,7 @@
 use crate::constants::{single_file_indexes::*, tracks::TRACKS};
 use crate::models::racecard::{Horse, KeyTrainerStat, PastPerformance, Race, Racecard, Workout};
 use crate::utils::transformers::Transformers;
+use crate::analysis::trip_handicapping_horse::best_bet_back_line;
 use tokio::fs;
 
 const NUMBER_OF_COLUMNS: usize = 1435;
@@ -26,8 +27,8 @@ pub async fn build_racecard(path: String, zip_file_name: String) -> Result<Racec
         }
     }
 
-    let track_code = &lines[0][SF_TRACK];
-    let track_name = TRACKS.get(track_code).copied().unwrap_or("track_code");
+    let track_code = &lines[0][SF_TRACK].to_lowercase();
+    let track_name = TRACKS.get(&track_code.to_uppercase()).copied().unwrap_or("track_code");
 
     let mut races = Vec::<Race>::new();
 
@@ -97,6 +98,7 @@ pub async fn build_racecard(path: String, zip_file_name: String) -> Result<Racec
             id: 0,
             race_id: 0,
             scratched: false,
+            trip_handicapping_info: String::new(),
             post_position: line[SF_POST_POSITION].parse::<u32>().ok(),
             entry: line[SF_ENTRY].clone(),
             claiming_price_of_horse: line[SF_CLAIMING_PRICE_OF_HORSE].parse::<u32>().ok(),
@@ -435,6 +437,19 @@ pub async fn build_racecard(path: String, zip_file_name: String) -> Result<Racec
             horse.past_performances.push(pp);
         }
 
+        if let Some(bet_back) = best_bet_back_line(&horse) {
+            horse.trip_handicapping_info = format!(
+                "{},{},{},{},{},{},{}",
+                bet_back.score.raw,
+                bet_back.score.headline,
+                bet_back.surface,
+                bet_back.dist_f,
+                bet_back.date,
+                bet_back.track,
+                bet_back.adj_points
+            );
+        }
+
         for j in 0..6 {
             if &lines[0][SF_KEY_TRAINER_STAT + j * 5] == "" {
                 continue;
@@ -463,6 +478,7 @@ pub async fn build_racecard(path: String, zip_file_name: String) -> Result<Racec
     let racecard = Racecard {
         id: 0,
         zip_file_name: zip_file_name,
+        track_code: track_code.clone(),
         track: track_name.to_string(),
         date: lines[0][SF_RACE_DATE].clone(),
         long_date: Transformers::prepend_weekday(&lines[0][SF_RACE_DATE])

@@ -5,7 +5,7 @@ use crate::models::racecard::{
 };
 
 const RACE_COLUMNS: usize = 43;
-const HORSE_COLUMNS: usize = 143;
+const HORSE_COLUMNS: usize = 144;
 const PAST_PERFORMANCE_COLUMNS: usize = 101;
 
 fn placeholders(count: usize) -> String {
@@ -21,6 +21,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         CREATE TABLE IF NOT EXISTS racecards (
             id INTEGER PRIMARY KEY,
             zip_file_name TEXT NOT NULL,
+            track_code TEXT NOT NULL,
             track TEXT NOT NULL,
             date TEXT NOT NULL,
             long_date TEXT NOT NULL
@@ -79,6 +80,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         CREATE TABLE IF NOT EXISTS horses (
             id INTEGER PRIMARY KEY,
             race_id INTEGER NOT NULL,
+            trip_handicapping_info TEXT NOT NULL,
             post_position INTEGER,
             entry TEXT NOT NULL,
             claiming_price_of_horse INTEGER,
@@ -372,6 +374,7 @@ pub async fn read_racecard(pool: &SqlitePool, racecard_row: SqliteRow) -> Result
     let mut racecard = Racecard {
         id: racecard_row.get("id"),
         zip_file_name: racecard_row.get("zip_file_name"),
+        track_code: racecard_row.get("track_code"),
         track: racecard_row.get("track"),
         date: racecard_row.get("date"),
         long_date: racecard_row.get("long_date"),
@@ -543,6 +546,7 @@ fn horse_from_row(row: &SqliteRow) -> Horse {
         id: row.get("id"),
         race_id: row.get("race_id"),
         scratched: false,
+        trip_handicapping_info: row.get("trip_handicapping_info"),
         post_position: opt_u32(row, "post_position"),
         entry: row.get("entry"),
         claiming_price_of_horse: opt_u32(row, "claiming_price_of_horse"),
@@ -836,14 +840,16 @@ pub async fn add_racecard(
         r#"
         INSERT INTO racecards (
             zip_file_name,
+            track_code,
             track,
             date,
             long_date
         )
-        VALUES (?, ?, ?, ?);
+        VALUES (?, ?, ?, ?, ?);
         "#,
     )
     .bind(&racecard.zip_file_name)
+    .bind(&racecard.track_code)
     .bind(&racecard.track)
     .bind(&racecard.date)
     .bind(&racecard.long_date)
@@ -958,6 +964,7 @@ pub async fn add_racecard(
                 r#"
                 INSERT INTO horses (
                     race_id,
+                    trip_handicapping_info,
                     post_position,
                     entry,
                     claiming_price_of_horse,
@@ -1107,6 +1114,7 @@ pub async fn add_racecard(
             );
             let result = sqlx::query(&horse_sql)
                 .bind(horse.race_id)
+                .bind(&horse.trip_handicapping_info)
                 .bind(horse.post_position)
                 .bind(&horse.entry)
                 .bind(horse.claiming_price_of_horse)

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct Racecard {
     pub id: i64,
     pub zip_file_name: String,
+    pub track_code: String,
     pub track: String,
     pub date: String,
     pub long_date: String,
@@ -64,6 +65,7 @@ pub struct Horse {
     pub id: i64,
     pub race_id: i64,
     pub scratched: bool,
+    pub trip_handicapping_info: String,
     pub post_position: Option<u32>,
     pub entry: String,
     pub claiming_price_of_horse: Option<u32>,

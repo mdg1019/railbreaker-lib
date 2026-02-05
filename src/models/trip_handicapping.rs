@@ -14,4 +14,5 @@ pub struct BetBackPick {
     pub dist_f: f64,
     pub date: String,
     pub track: String,
+    pub adj_points: f64,
 }

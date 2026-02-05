@@ -252,6 +252,7 @@ pub fn best_bet_back_line(horse: &Horse) -> Option<BetBackPick> {
             dist_f: dist_to_furlongs(pp.distance),
             date: pp.race_date.clone(),
             track: pp.track_code.clone(),
+            adj_points: scored.adj * 1.5,
         };
 
         let better = best
