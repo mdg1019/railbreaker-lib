@@ -1,4 +1,4 @@
-use crate::constants::single_file_indexes::*;
+use crate::constants::{single_file_indexes::*, tracks::TRACKS};
 use crate::models::racecard::{Horse, KeyTrainerStat, PastPerformance, Race, Racecard, Workout};
 use crate::utils::transformers::Transformers;
 use tokio::fs;
@@ -27,7 +27,7 @@ pub async fn build_racecard(path: String, zip_file_name: String) -> Result<Racec
     }
 
     let track_code = &lines[0][SF_TRACK];
-    let track_name = track_code;
+    let track_name = TRACKS.get(track_code).copied().unwrap_or("track_code");
 
     let mut races = Vec::<Race>::new();
 
