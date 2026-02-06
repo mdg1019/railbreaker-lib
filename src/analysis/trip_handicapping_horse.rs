@@ -226,9 +226,9 @@ fn apply_context_adjust(mut ts: TripScore, pp: &PastPerformance) -> TripScore {
     ts
 }
 
-fn dist_to_furlongs(distance_feet: Option<i32>) -> f64 {
-    match distance_feet {
-        Some(distance_feet) if distance_feet > 0 => (distance_feet as f64) / 660.0,
+fn dist_to_furlongs(distance_yards: Option<i32>) -> f64 {
+    match distance_yards {
+        Some(distance_yards) if distance_yards > 0 => (distance_yards as f64) / 220.0,
         _ => 0.0,
     }
 }
