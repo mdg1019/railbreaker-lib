@@ -5,7 +5,7 @@ use crate::models::racecard::{
 };
 
 const RACE_COLUMNS: usize = 43;
-const HORSE_COLUMNS: usize = 144;
+const HORSE_COLUMNS: usize = 145;
 const PAST_PERFORMANCE_COLUMNS: usize = 101;
 
 fn placeholders(count: usize) -> String {
@@ -80,6 +80,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         CREATE TABLE IF NOT EXISTS horses (
             id INTEGER PRIMARY KEY,
             race_id INTEGER NOT NULL,
+            scratched INTEGER NOT NULL,
             trip_handicapping_info TEXT NOT NULL,
             post_position INTEGER,
             entry TEXT NOT NULL,
@@ -545,7 +546,7 @@ fn horse_from_row(row: &SqliteRow) -> Horse {
     Horse {
         id: row.get("id"),
         race_id: row.get("race_id"),
-        scratched: false,
+        scratched: row.get::<i64, _>("scratched") != 0,
         trip_handicapping_info: row.get("trip_handicapping_info"),
         post_position: opt_u32(row, "post_position"),
         entry: row.get("entry"),
@@ -964,6 +965,7 @@ pub async fn add_racecard(
                 r#"
                 INSERT INTO horses (
                     race_id,
+                    scratched,
                     trip_handicapping_info,
                     post_position,
                     entry,
@@ -1114,6 +1116,7 @@ pub async fn add_racecard(
             );
             let result = sqlx::query(&horse_sql)
                 .bind(horse.race_id)
+                .bind(horse.scratched)
                 .bind(&horse.trip_handicapping_info)
                 .bind(horse.post_position)
                 .bind(&horse.entry)
