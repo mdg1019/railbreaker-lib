@@ -1,6 +1,9 @@
-use crate::models::racecard::{Horse, PastPerformance};
-use crate::models::trip_handicapping::{TripScore, BetBackPick};
+use std::vec;
 
+use crate::models::racecard::{Horse, PastPerformance};
+use crate::models::trip_handicapping::{TripResult, TripScore};
+
+use chrono::{Duration, NaiveDate};
 use regex::Regex;
 
 
@@ -226,44 +229,131 @@ fn apply_context_adjust(mut ts: TripScore, pp: &PastPerformance) -> TripScore {
     ts
 }
 
-fn dist_to_furlongs(distance_yards: Option<i32>) -> f64 {
-    match distance_yards {
-        Some(distance_yards) if distance_yards > 0 => (distance_yards as f64) / 220.0,
-        _ => 0.0,
+fn parse_race_date(value: &str) -> Option<NaiveDate> {
+    let v = value.trim();
+    if v.len() == 8 && v.chars().all(|c| c.is_ascii_digit()) {
+        NaiveDate::parse_from_str(v, "%Y%m%d").ok()
+    } else {
+        NaiveDate::parse_from_str(v, "%m/%d/%Y").ok()
     }
 }
 
-pub fn best_bet_back_line(horse: &Horse) -> Option<BetBackPick> {
-    let mut best: Option<BetBackPick> = None;
+fn bad_trip_reason(text: &str) -> Option<&'static str> {
+    let t = text.to_lowercase();
+    let bad_phrases = [
+        "no factor",
+        "no threat",
+        "never involved",
+        "was never a threat",
+        "stopped",
+        "gave way",
+        "done early",
+        "eased",
+        "empty",
+        "folded",
+    ];
+    bad_phrases.into_iter().find(|p| t.contains(p))
+}
 
-    for (i, pp) in horse.past_performances.iter().enumerate() {
-        let text = merged_trip_text(pp);
-        if text.trim().is_empty() {
+fn good_trip_reason(ts: &TripScore) -> String {
+    if !ts.why.is_empty() {
+        ts.why[0].clone()
+    } else if !ts.headline.is_empty() && ts.headline != "trip" {
+        ts.headline.clone()
+    } else {
+        "trouble trip".to_string()
+    }
+}
+
+fn classify_trip(pp: &PastPerformance) -> (String, i32) {
+    let text = merged_trip_text(pp);
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return ("Excusable: no trip note".to_string(), 0);
+    }
+
+    if let Some(reason) = bad_trip_reason(trimmed) {
+        return (format!("Bad: {}", reason), -1);
+    }
+
+    let raw = raw_trip_score(trimmed);
+    let scored = apply_context_adjust(raw, pp);
+
+    let good_trip = scored.adj >= 1.0
+        || scored.raw >= 0.9
+        || max_path_from_text(trimmed).unwrap_or(0) >= 3;
+
+    if good_trip {
+        (format!("Good: {}", good_trip_reason(&scored)), 1)
+    } else {
+        ("Excusable: routine trip".to_string(), 0)
+    }
+}
+
+pub fn trip_data_for_horse(horse: &Horse, race_date: &String) -> Option<TripResult> {
+    let race_day = parse_race_date(race_date)?;
+    let window = Duration::days(60);
+
+    let mut picked: Vec<((String, i32), i64)> = Vec::with_capacity(3);
+
+    for pp in horse.past_performances.iter() {
+        let pp_day = match parse_race_date(&pp.race_date) {
+            Some(d) => d,
+            None => continue,
+        };
+
+        if pp_day > race_day {
             continue;
         }
 
-        let raw = raw_trip_score(&text);
-        let scored = apply_context_adjust(raw, pp);
+        let time_since_last_pp = race_day.signed_duration_since(pp_day);
 
-        let pick = BetBackPick {
-            pp_index: i,
-            score: scored.clone(),
-            surface: pp.surface.clone(),
-            dist_f: dist_to_furlongs(pp.distance),
-            date: pp.race_date.clone(),
-            track: pp.track_code.clone(),
-            adj_points: scored.adj * 1.5,
-        };
+        if time_since_last_pp > window {
+            continue;
+        }
 
-        let better = best
-            .as_ref()
-            .map(|b| pick.score.adj > b.score.adj)
-            .unwrap_or(true);
+        picked.push((classify_trip(pp), time_since_last_pp.num_days()));
 
-        if better {
-            best = Some(pick);
+        if picked.len() == 3 {
+            break;
         }
     }
 
-    best
+    if picked.is_empty() {
+        return None;
+    }
+
+    let weights = [50, 30, 20];
+    let mut score: i32 = 0;
+    for (i, ((_, grade), _)) in picked.iter().enumerate() {
+        let w = weights.get(i).copied().unwrap_or(0);
+        score += w * (*grade);
+    }
+
+    let mut comments = vec![
+        "".to_string(),
+        "".to_string(),
+        "".to_string(),
+    ];
+
+    let mut days_back =vec![
+        0,
+        0,
+        0,
+    ];
+
+    for (i, (comment, days)) in picked.into_iter().enumerate().take(3) {
+        comments[i] = comment.0.replace(',', " ");
+        days_back[i] = days;
+    }
+
+    Some(TripResult {
+        score,
+        days_back_1st: days_back[0],
+        comment_1st: comments[0].clone(),
+        days_back_2nd: days_back[1],
+        comment_2nd: comments[1].clone(),
+        days_back_3rd: days_back[2],
+        comment_3rd: comments[2].clone(),
+    })
 }

@@ -1,7 +1,7 @@
 use crate::constants::{single_file_indexes::*, tracks::TRACKS};
 use crate::models::racecard::{Horse, KeyTrainerStat, PastPerformance, Race, Racecard, Workout};
 use crate::utils::transformers::Transformers;
-use crate::analysis::trip_handicapping_horse::best_bet_back_line;
+use crate::analysis::trip_handicapping_horse::trip_data_for_horse;
 use std::path::Path;
 use tokio::fs;
 
@@ -438,16 +438,16 @@ pub async fn build_racecard(path: String, zip_file_name: String) -> Result<Racec
             horse.past_performances.push(pp);
         }
 
-        if let Some(bet_back) = best_bet_back_line(&horse) {
+        if let Some(trip_result) = trip_data_for_horse(&horse, &lines[0][SF_RACE_DATE]) {
             horse.trip_handicapping_info = format!(
                 "{},{},{},{},{},{},{}",
-                bet_back.score.raw,
-                bet_back.score.headline,
-                bet_back.surface,
-                bet_back.dist_f,
-                bet_back.date,
-                bet_back.track,
-                bet_back.adj_points
+                trip_result.score,
+                trip_result.days_back_1st,
+                trip_result.comment_1st,
+                trip_result.days_back_2nd,
+                trip_result.comment_2nd,
+                trip_result.days_back_3rd,
+                trip_result.comment_3rd
             );
         }
 

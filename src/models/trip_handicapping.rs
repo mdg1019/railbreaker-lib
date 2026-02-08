@@ -16,3 +16,14 @@ pub struct BetBackPick {
     pub track: String,
     pub adj_points: f64,
 }
+
+#[derive(Debug, Clone)]
+pub struct TripResult {
+    pub score: i32,
+    pub days_back_1st: i64,
+    pub comment_1st: String,
+    pub days_back_2nd: i64,
+    pub comment_2nd: String,
+    pub days_back_3rd: i64,
+    pub comment_3rd: String,
+}
