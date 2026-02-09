@@ -247,13 +247,19 @@ fn bad_trip_reason(text: &str) -> Option<&'static str> {
         "was never a threat",
         "little impact",
         "faltered 2nd turn",
+        "weakened 2nd turn",
         "stopped",
-        "gradually weakened",
         "gave way",
         "done early",
         "eased",
         "empty",
         "folded",
+        "trailed 1/8",
+        "tired",
+        "failed to rally",
+        "failed to respond",
+        "faltered",
+        "mildly",
     ];
     bad_phrases.into_iter().find(|p| t.contains(p))
 }
@@ -275,8 +281,22 @@ fn classify_trip(pp: &PastPerformance) -> (String, i32) {
         return ("Excusable: no trip note".to_string(), 0);
     }
 
+    if contains_any(trimmed, &["passed tiring foes"]) {
+        return ("Excusable: passed tiring foes".to_string(), 0);
+    }
+
     if let Some(reason) = bad_trip_reason(trimmed) {
         return (format!("Bad: {}", reason), -1);
+    }
+
+    if contains_any(trimmed, &["clearly 2nd best", "driving"]) {
+        let t = trimmed.to_lowercase();
+        let reason = if t.contains("clearly 2nd best") {
+            "clearly 2nd best"
+        } else {
+            "driving"
+        };
+        return (format!("Good: {}", reason), 1);
     }
 
     let raw = raw_trip_score(trimmed);
