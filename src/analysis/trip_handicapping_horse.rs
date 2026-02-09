@@ -238,6 +238,29 @@ fn parse_race_date(value: &str) -> Option<NaiveDate> {
     }
 }
 
+fn finish_position_number(pp: &PastPerformance) -> Option<u32> {
+    let raw = pp.finish_position.trim();
+    if raw.is_empty() {
+        return None;
+    }
+
+    let digits: String = raw.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        return None;
+    }
+
+    digits.parse::<u32>().ok()
+}
+
+fn finish_position_label(pos: u32) -> Option<&'static str> {
+    match pos {
+        1 => Some("winner"),
+        2 => Some("2nd"),
+        3 => Some("3rd"),
+        _ => None,
+    }
+}
+
 fn bad_trip_reason(text: &str) -> Option<&'static str> {
     let t = text.to_lowercase();
     let bad_phrases = [
@@ -260,15 +283,54 @@ fn bad_trip_reason(text: &str) -> Option<&'static str> {
         "failed to respond",
         "faltered",
         "mildly",
+        "no rally",
+        "finished early",
+        "remained back",
+        "trailed throughout",
+        "trailed in",
+        "backed up stretch",
+        "lacked closing kick",
+        "lacked kick",
+        "fade before a half",
+        "little before drive",
+        "little for drive",
     ];
     bad_phrases.into_iter().find(|p| t.contains(p))
 }
 
+fn map_good_reason(reason: &str) -> String {
+    if let Some(stripped) = reason.strip_prefix("wide_") {
+        if let Some(w) = stripped.strip_suffix('w') {
+            return format!("wide {w}w");
+        }
+    }
+
+    match reason {
+        "start_trouble" => "bad start".to_string(),
+        "start_contact" => "squeezed/crowded start".to_string(),
+        "traffic/interference" => "traffic/interference".to_string(),
+        "bump/brush" => "bumped/roughed".to_string(),
+        "used/pace_pressure" => "pace pressure".to_string(),
+        "close_finish_bonus" => "close finish".to_string(),
+        "mid_finish_bonus" => "mid finish".to_string(),
+        "fast_early_context" => "fast early pace".to_string(),
+        "stopped_clip" => "stopped".to_string(),
+        "big_defeat_clip" => "big defeat".to_string(),
+        "noncompetitive_phrase" => "noncompetitive".to_string(),
+        "dnf_like" => "pulled up/unseated".to_string(),
+        _ => reason.replace('_', " "),
+    }
+}
+
 fn good_trip_reason(ts: &TripScore) -> String {
     if !ts.why.is_empty() {
-        ts.why[0].clone()
+        map_good_reason(&ts.why[0])
     } else if !ts.headline.is_empty() && ts.headline != "trip" {
-        ts.headline.clone()
+        if let Some(w) = ts.headline.strip_suffix('w') {
+            format!("wide {w}w")
+        } else {
+            ts.headline.clone()
+        }
     } else {
         "trouble trip".to_string()
     }
@@ -277,12 +339,29 @@ fn good_trip_reason(ts: &TripScore) -> String {
 fn classify_trip(pp: &PastPerformance) -> (String, i32) {
     let text = merged_trip_text(pp);
     let trimmed = text.trim();
+
+    if let Some(pos) = finish_position_number(pp) {
+        if pos <= 3 {
+            let label = finish_position_label(pos).unwrap_or("top-3 finish");
+            return (format!("Good: {label}"), 1);
+        }
+    }
+
     if trimmed.is_empty() {
         return ("Excusable: no trip note".to_string(), 0);
     }
 
+    if contains_any(trimmed, &["flattened late"]) {
+        return ("Excusable: flattened late".to_string(), 0);
+    }
+    if contains_any(trimmed, &["faltered drive"]) {
+        return ("Excusable: faltered drive".to_string(), 0);
+    }
     if contains_any(trimmed, &["passed tiring foes"]) {
         return ("Excusable: passed tiring foes".to_string(), 0);
+    }
+    if contains_any(trimmed, &["passing tiring rivals"]) {
+        return ("Excusable: passing tiring rivals".to_string(), 0);
     }
 
     if let Some(reason) = bad_trip_reason(trimmed) {
