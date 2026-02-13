@@ -3,7 +3,7 @@ use std::vec;
 use crate::models::racecard::{Horse, PastPerformance};
 use crate::models::trip_handicapping::{TripResult, TripScore};
 
-use chrono::{Duration, NaiveDate};
+use chrono::{NaiveDate};
 use regex::Regex;
 
 
@@ -394,7 +394,6 @@ fn classify_trip(pp: &PastPerformance) -> (String, i32) {
 
 pub fn trip_data_for_horse(horse: &Horse, race_date: &String) -> Option<TripResult> {
     let race_day = parse_race_date(race_date)?;
-    let window = Duration::days(60);
 
     let mut picked: Vec<((String, i32), i64)> = Vec::with_capacity(3);
 
@@ -409,10 +408,6 @@ pub fn trip_data_for_horse(horse: &Horse, race_date: &String) -> Option<TripResu
         }
 
         let time_since_last_pp = race_day.signed_duration_since(pp_day);
-
-        if time_since_last_pp > window {
-            continue;
-        }
 
         picked.push((classify_trip(pp), time_since_last_pp.num_days()));
 
